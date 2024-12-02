@@ -34,6 +34,27 @@ com/xiaomi/codequality/constant/Const.java当中可以配置项目文件路径�
 
 注：result/record文件为持久化文件。
 
+扫描结果按照文件分类给出，并给出匹配的条目信息：
+```text
+ProjectName: ai-controller
+FileType: CONF
+The total number of files is: 0
+ProjectName: ai-controller
+FileType: SCALA
+The total number of files is: 2
+    \ai-nlp-service\app\com\xiaomi\data\intent\service\persist\NlpSession.scala
+        --Line 60:             new SessionHelper("cluster_01", timeout = Some(100))
+    \_deprecated\i-ai-mi-com\app\controllers\mico\Mico.scala
+        --Line 37:     private val redisApi: RedisApi[String, String] = RedisApi(new RedisConfig())(StringCodec.UTF8)
+
+ProjectName: ai-controller
+FileType: JAVA
+The total number of files is: 0
+ProjectName: ai-controller
+FileType: PY
+The total number of files is: 0
+
+```
 # 如何扩展
 实现TextExp，可以自定义将匹配的条目放入context当中。
 ```java
