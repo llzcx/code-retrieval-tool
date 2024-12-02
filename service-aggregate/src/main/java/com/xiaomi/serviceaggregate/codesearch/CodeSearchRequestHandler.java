@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -52,6 +53,7 @@ public class CodeSearchRequestHandler implements CodeQualityLogger, Closeable {
     private final CommandUtil commandUtil = new CommandUtil(16);
     private final List<FileTypeAndExp> fileTypeAndExpList;
     private final Set<String> set;
+    private final Set<String> handing = new ConcurrentSkipListSet<>();
     private final CustomizableBitmap customizableBitmap;
 
     private final ServiceBasePath serviceBasePath;
@@ -139,13 +141,13 @@ public class CodeSearchRequestHandler implements CodeQualityLogger, Closeable {
 
 
 
-    public CompletableFuture<Void> quickStart() {
+    public CompletableFuture<Void> search() {
         List<CompletableFuture<Void>> futures = new ArrayList<>();
         //监视器线程将记录进行持久化，并打印实时进度
         scheduled.scheduleAtFixedRate(() -> {
             try {
                 customizableBitmap.saveToFile();
-                LOGGER.info("Remaining task size is {}. The progress is {}/{}", repositories.size() - solved.intValue(), solved.intValue(), repositories.size());
+                LOGGER.info("Remaining task size is {}. The progress is {}/{}, set: {}", repositories.size() - solved.intValue(), solved.intValue(), repositories.size(), handing);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
@@ -238,6 +240,7 @@ public class CodeSearchRequestHandler implements CodeQualityLogger, Closeable {
         @Override
         public void run() {
             LOGGER.info("Pulling in {}", repository);
+            handing.add(repository);
             String basePath = serviceBasePath.getBasePath(repository);
             LOGGER.info("Pulling success basePath:{}", basePath);
             CodeSearchRequestHandler.CodeSearchRequest.CodeSearchRequestBuilder requestBuilder = CodeSearchRequestHandler.CodeSearchRequest.builder();
@@ -249,8 +252,8 @@ public class CodeSearchRequestHandler implements CodeQualityLogger, Closeable {
             CodeSearchResponse response = handle(request);
             if (response==null) {
                 LOGGER.error("Analysis fail. Repository:[{}]",repository);
-            }else if(!response.isEmpty) {
                 problemsExist.add(repository);
+            }else if(!response.isEmpty) {
                 FileUtil.writeTextToFile(Const.BASE_RESULT.toString(), extractRepoName(repository) ,response.toString());
                 LOGGER.info("Analysis success. Find matching items. Repository:[{}]",repository);
             } else {
@@ -260,7 +263,8 @@ public class CodeSearchRequestHandler implements CodeQualityLogger, Closeable {
 //                cn.hutool.core.io.FileUtil.del(basePath);
 //            });
 
-            LOGGER.info("Repository: {} delete success.",repository);
+            handing.remove(repository);
+            LOGGER.info("Repository: {} delete success.", repository);
         }
     }
 

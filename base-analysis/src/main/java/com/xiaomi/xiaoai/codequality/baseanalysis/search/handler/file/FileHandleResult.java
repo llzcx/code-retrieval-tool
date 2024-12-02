@@ -50,13 +50,14 @@ public class FileHandleResult {
         StringBuilder sb = new StringBuilder();
         appendWithPadding(sb, "ProjectName: " + serviceName, 0);
         appendWithPadding(sb, "FileType: " + fileType, 0);
+        appendWithPadding(sb, "The total number of files is: " + fileMatchResults.size(), 0);
         AtomicInteger count = new AtomicInteger();
         fileMatchResults.forEach(fileMatchResult -> {
             count.addAndGet(1);
             appendWithPadding(sb, trimAfterFirstMatch(fileMatchResult.getFilePath(), serviceName), 2);
             appendFileMatches(sb, fileMatchResult.getTextMatchEntity(), 4);
         });
-        return sb + "\nThe total number of files is: " + count.get() + "\n";
+        return sb.toString();
     }
 
     private void appendFileMatches(StringBuilder sb, List<TextMatchEntity> matches, int paddingLevel) {
