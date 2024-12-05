@@ -19,4 +19,9 @@ public class PythonFileHandlerXiaoAiService extends FileHandlerXiaoAiService {
     public boolean filter(File file) {
         return file.getName().endsWith(".py");
     }
+
+    @Override
+    public String toString() {
+        return ".py";
+    }
 }

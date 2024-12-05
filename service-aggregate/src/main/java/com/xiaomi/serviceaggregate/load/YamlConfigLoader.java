@@ -26,6 +26,7 @@ public class YamlConfigLoader {
     public static class Service {
         String token;
         String gitlab;
+        String repository;
         String group;
         List<String> repositoryWhiteList;
     }

@@ -62,6 +62,7 @@ public abstract class FileHandlerXiaoAiService extends XiaoAiServiceQueryHandler
                 FileHandleResult fileHandleResult = FileHandleResult.builder()
                         .servicePath(serviceFile.getPath())
                         .serviceName(serviceFile.getName())
+                        .exp(exp)
                         .fileMatchResults(list)
                         .build();
                 cf.complete(fileHandleResult);

@@ -6,6 +6,7 @@ package com.xiaomi.xiaoai.codequality.baseanalysis.search.handler.file;
  * @Date 2024/10/10
  */
 public enum FileType {
+    CPP("cpp"),
     JAVA("java"),
     SCALA("scala"),
     XML("xml"),
@@ -18,7 +19,10 @@ public enum FileType {
     TXT("txt"),
     SBT("sbt"),
     CONF("conf"),
-    ANY("any")
+    ANY("All files"),
+    APPLICATION_AK_CONF("application-ak.conf"),
+    APPLICATION_C4_CONF("application-c4.conf"),
+    PROGRAMMING_LANGUAGE(".java .scala .py .js .cpp .c .cs .php .rb .go .rs"),
     ;
 
     private final String type;

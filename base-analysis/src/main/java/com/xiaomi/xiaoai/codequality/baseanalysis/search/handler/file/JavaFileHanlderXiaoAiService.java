@@ -20,4 +20,9 @@ public class JavaFileHanlderXiaoAiService extends FileHandlerXiaoAiService {
     public boolean filter(File file) {
         return file.getName().endsWith(".java");
     }
+
+    @Override
+    public String toString() {
+        return ".java";
+    }
 }

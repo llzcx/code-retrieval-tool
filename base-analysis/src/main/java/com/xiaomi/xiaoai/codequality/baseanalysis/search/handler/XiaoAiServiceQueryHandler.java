@@ -30,7 +30,7 @@ public abstract class XiaoAiServiceQueryHandler<T>{
                    .setCorePoolSize(16)
                    .setMaxPoolSize(16)
                    .setThreadFactory(new NamedThreadFactory("QueryHandler-Task-",true))
-                   .setWorkQueue(new ArrayBlockingQueue<>(5000))
+                   .setWorkQueue(new ArrayBlockingQueue<>(50000))
                    .build();
            isStarted = true;
        }

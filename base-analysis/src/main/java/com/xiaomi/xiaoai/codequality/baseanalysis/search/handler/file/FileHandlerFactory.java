@@ -23,6 +23,12 @@ public class FileHandlerFactory {
                 return new PythonFileHandlerXiaoAiService(exp, whiteList);
             case ANY:
                 return new AnyFileHandlerXiaoAiService(exp, whiteList);
+            case APPLICATION_AK_CONF:
+                return new ApplicationAkConf(exp, whiteList);
+            case APPLICATION_C4_CONF:
+                return new ApplicationC4Conf(exp, whiteList);
+            case PROGRAMMING_LANGUAGE:
+                return new ProgrammingLanguageFileHandlerXiaoAiService(exp, whiteList);
             default:
                 throw new IllegalArgumentException("Unsupported file type: " + fileType);
         }

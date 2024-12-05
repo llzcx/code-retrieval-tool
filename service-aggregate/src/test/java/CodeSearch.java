@@ -1,5 +1,6 @@
-package com.xiaomi.serviceaggregate.codesearch;
-
+import com.xiaomi.serviceaggregate.codesearch.CodeSearchRequestHandler;
+import com.xiaomi.serviceaggregate.codesearch.FileTypeAndExp;
+import com.xiaomi.serviceaggregate.codesearch.SaveType;
 import com.xiaomi.xiaoai.codequality.baseanalysis.search.expression.base.Exp;
 import static com.xiaomi.xiaoai.codequality.baseanalysis.search.expression.base.Exp.or;
 import com.xiaomi.xiaoai.codequality.baseanalysis.search.expression.text.TextMatchRequirement;
@@ -15,18 +16,14 @@ import java.util.List;
 public class CodeSearch {
 
     public static void main(String[] args) throws Exception {
-        List<CodeSearchRequestHandler.FileTypeAndExp> list = new ArrayList<>();
+        List<FileTypeAndExp> list = new ArrayList<>();
+        String path = "D:\\project\\dev-project\\xiaoai-code-quality-information-platform\\data";
         Exp confCondition
                 = or(new TextMatchRequirement("^(?!.*cluster_01_proxy)(?=.*cluster_01(?:_with_password)?).*", true), new TextMatchRequirement("RedisConfig()", false));
         //conf
-        list.add(new CodeSearchRequestHandler.FileTypeAndExp(confCondition, FileType.CONF));
-        //scala
-        list.add(new CodeSearchRequestHandler.FileTypeAndExp(confCondition, FileType.SCALA));
-        //Java
-        list.add(new CodeSearchRequestHandler.FileTypeAndExp(confCondition, FileType.JAVA));
-        //python
-        list.add(new CodeSearchRequestHandler.FileTypeAndExp(confCondition, FileType.PY));
-        CodeSearchRequestHandler handler = new CodeSearchRequestHandler(list);
+        list.add(new FileTypeAndExp(confCondition, FileType.PROGRAMMING_LANGUAGE));
+        list.add(new FileTypeAndExp(confCondition, FileType.CONF));
+        CodeSearchRequestHandler handler = new CodeSearchRequestHandler(list, false, path, SaveType.CSV);
         handler.search().get();
         handler.close();
     }

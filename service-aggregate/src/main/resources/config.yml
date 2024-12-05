@@ -2,5 +2,6 @@ service:
   group: ai-service
   gitlab: https://git.n.xiaomi.com
   token: sD7iszbb3oBCCDZq468e
+  repository: D:/cache/repositories
   repositoryWhiteList:
     - SideKick

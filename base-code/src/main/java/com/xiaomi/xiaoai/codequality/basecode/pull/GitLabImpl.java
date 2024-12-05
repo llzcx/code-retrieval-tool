@@ -16,19 +16,26 @@ import java.nio.file.Paths;
 public class GitLabImpl extends ServiceBasePath implements CodeQualityLogger {
     CommandUtil commandUtil = new CommandUtil();
 
-    public GitLabImpl(CommandUtil commandUtil) {
+    String repository;
+
+    public GitLabImpl(CommandUtil commandUtil, String repository) {
         super(commandUtil);
+        this.repository = repository;
     }
 
     @Override
     public String getBasePath(String URL) {
-        Path absolutePath = Const.BASE_REPOSITORIES.toAbsolutePath();
+        Path absolutePath = Paths.get(repository);
         String repoName = PrintUtil.extractRepoName(URL);
         Path path = Paths.get(absolutePath.toString(), repoName);
-        String cmd = "git clone " + URL;
         if(!path.toFile().exists()){
+            String cmd = "git clone " + URL;
             String res = commandUtil.runCmd(cmd, null, absolutePath);
             LOGGER.info("clone {} success\n{}", repoName, res);
+        } else {
+            String cmd = "git pull";
+            String res = commandUtil.runCmd(cmd, null, path);
+            LOGGER.info("pull {} success\n{}", repoName, res);
         }
         return path.toString();
     }

@@ -1,6 +1,7 @@
 package com.xiaomi.xiaoai.codequality.baseanalysis.search.handler.file;
 
 import static com.xiaomi.codequality.util.PrintUtil.appendWithPadding;
+import com.xiaomi.xiaoai.codequality.baseanalysis.search.expression.base.Exp;
 import com.xiaomi.xiaoai.codequality.baseanalysis.search.expression.text.TextMatchEntity;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -22,6 +23,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class FileHandleResult {
 
     private FileType fileType;
+    private String fileTypeString;
+    private Exp exp;
     private String serviceName;
     private String servicePath;
 

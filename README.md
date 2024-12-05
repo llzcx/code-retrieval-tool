@@ -7,25 +7,22 @@ service-aggregate/src/main/resources/config.yml 当中可以配置账号、git g
 
 可以根据查询条件构造对应的文件的query，例如:
 
-"包含cluster_01或者cluster_01_with_password或者RedisConfig() 但不包含 cluster_01_proxy 的 行
+"包含cluster_01或者cluster_01_with_password或者RedisConfig() 但不包含 cluster_01_proxy 的 行，结果
+输出到CSV文件当中
 "
 ```java
-public static void main(String[] args) throws Exception {
-List<CodeSearchRequestHandler.FileTypeAndExp> list = new ArrayList<>();
-Exp confCondition
-= or(new TextMatchRequirement("^(?!.*cluster_01_proxy)(?=.*cluster_01(?:_with_password)?).*", true), new TextMatchRequirement("RedisConfig()", false));
-//conf
-list.add(new CodeSearchRequestHandler.FileTypeAndExp(confCondition, FileType.CONF));
-//scala
-list.add(new CodeSearchRequestHandler.FileTypeAndExp(confCondition, FileType.SCALA));
-//Java
-list.add(new CodeSearchRequestHandler.FileTypeAndExp(confCondition, FileType.JAVA));
-//python
-list.add(new CodeSearchRequestHandler.FileTypeAndExp(confCondition, FileType.PY));
-CodeSearchRequestHandler handler = new CodeSearchRequestHandler(list);
-handler.search().get();
-handler.close();
-}
+    public static void main(String[] args) throws Exception {
+        List<FileTypeAndExp> list = new ArrayList<>();
+        String path = "D:\\project\\dev-project\\xiaoai-code-quality-information-platform\\data";
+        Exp confCondition
+        = or(new TextMatchRequirement("^(?!.*cluster_01_proxy)(?=.*cluster_01(?:_with_password)?).*", true), new TextMatchRequirement("RedisConfig()", false));
+        //conf
+        list.add(new FileTypeAndExp(confCondition, FileType.PROGRAMMING_LANGUAGE));
+        list.add(new FileTypeAndExp(confCondition, FileType.CONF));
+        CodeSearchRequestHandler handler = new CodeSearchRequestHandler(list, false, path, SaveType.CSV);
+        handler.search().get();
+        handler.close();
+        }
 
 ```
 
@@ -35,6 +32,9 @@ com/xiaomi/codequality/constant/Const.java当中可以配置项目文件路径�
 注：result/record文件为持久化文件。
 
 扫描结果按照文件分类给出，并给出匹配的条目信息：
+1. CSV格式
+![img.png](doc/img/img.png)
+2. 正常导出查看
 ```text
 ProjectName: ai-controller
 FileType: CONF
@@ -56,7 +56,8 @@ The total number of files is: 0
 
 ```
 # 如何扩展
-实现TextExp，可以自定义将匹配的条目放入context当中。
+目前程序已经提供了TextMatchRequirement用于文本完全匹配和简单的正则匹配，适用于绝大多数场景。
+如果需要自定义，实现TextExp，可以自定义将匹配的条目放入context当中。
 ```java
 public class ScalaHeaderRequirement extends TextExp {
 
@@ -79,8 +80,8 @@ public class ScalaHeaderRequirement extends TextExp {
                 String suffix = line.substring(importPrefix.length()).trim();
                 if (suffix.equals("_") || suffix.contains(className)) {
                     TextMatchEntity entity = new TextMatchEntity();
-                    entity.setLineNumber(i + 1);
-                    entity.setMatch(lines[i]);
+                    entity.setLineNumber(i + 1);//设置行数
+                    entity.setMatch(lines[i]);//设置匹配的内容
                     matches.add(entity);
                 }
             }
@@ -102,7 +103,7 @@ public class ScalaHeaderRequirement extends TextExp {
 ```
 
 
-实现模板FileHandlerXiaoAiService，可以让扫描只关注某一类文件。
+实现模板FileHandlerXiaoAiService，可以让扫描程序只关注某一类文件。
 
 ```java
 public class ConfFileHandlerXiaoAiService extends FileHandlerXiaoAiService {

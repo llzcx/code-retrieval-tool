@@ -1,10 +1,8 @@
 package com.xiaomi.codequality.util;
 
-import com.xiaomi.codequality.constant.Const;
-
+import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
@@ -25,8 +23,15 @@ public class FileUtil {
         }
     }
 
-    public static String getResultPath(String repositoryName) {
-        return Paths.get(String.valueOf(Const.BASE_RESULT),repositoryName).toString();
+    public static boolean createAndCheckDir(String path) {
+        File file = Paths.get(path).toFile();
+        if(file.exists() && !file.isDirectory()) {
+            throw new IllegalArgumentException("invalid path:" + path);
+        }
+        if(!file.exists()) {
+            return file.mkdirs();
+        }
+        return file.isDirectory();
     }
 
 }

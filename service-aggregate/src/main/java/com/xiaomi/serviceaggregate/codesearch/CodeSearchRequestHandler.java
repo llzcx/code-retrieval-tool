@@ -20,10 +20,6 @@ import com.xiaomi.xiaoai.codequality.baseanalysis.search.handler.file.FileType;
 import com.xiaomi.xiaoai.codequality.basecode.pull.GitLabImpl;
 import com.xiaomi.xiaoai.codequality.basecode.pull.GitlabProjectsFetcherWithPagination;
 import com.xiaomi.xiaoai.codequality.basecode.pull.ServiceBasePath;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -52,39 +48,52 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class CodeSearchRequestHandler implements CodeQualityLogger, Closeable {
     private final CommandUtil commandUtil = new CommandUtil(16);
     private final List<FileTypeAndExp> fileTypeAndExpList;
-    private final Set<String> set;
+    private final Set<String> reposWhiteList;
     private final Set<String> handing = new ConcurrentSkipListSet<>();
     private final CustomizableBitmap customizableBitmap;
-
     private final ServiceBasePath serviceBasePath;
-
     private final List<String> repositories;
-
     private final Set<String> problemsExist = new HashSet<>();
     private boolean reset = false;
+    private AbstractResponseSaver responseSaver;
+    public static final Set<String> pathWhiteList = new HashSet<>();
 
-    public CodeSearchRequestHandler(List<FileTypeAndExp> fileTypeAndExpList, boolean reset) {
-        this(fileTypeAndExpList);
-        this.reset = reset;
+    static {
+        pathWhiteList.add("target");
     }
-    public CodeSearchRequestHandler(List<FileTypeAndExp> fileTypeAndExpList) {
+
+    public CodeSearchRequestHandler(List<FileTypeAndExp> fileTypeAndExpList, boolean reset, String dir) {
+        this(fileTypeAndExpList, dir);
+        this.reset = reset;
+        this.responseSaver = SaveFactory.createFileSaver(SaveType.NOR, dir);
+    }
+
+    public CodeSearchRequestHandler(List<FileTypeAndExp> fileTypeAndExpList, boolean reset, String dir, SaveType saveType) {
+        this(fileTypeAndExpList, dir);
+        this.reset = reset;
+        this.responseSaver = SaveFactory.createFileSaver(saveType, dir);
+    }
+    private CodeSearchRequestHandler(List<FileTypeAndExp> fileTypeAndExpList, String dir) {
         this.fileTypeAndExpList = fileTypeAndExpList;
         YamlConfigLoader.Service service = YamlConfigLoader.getConfig().getService();
         String group = service.getGroup();
         String gitlab = service.getGitlab();
         String token = service.getToken();
-        set = new HashSet<>(service.getRepositoryWhiteList());
+        String repositoryPath = service.getRepository();
+        if(!FileUtil.createAndCheckDir(repositoryPath) || !FileUtil.createAndCheckDir(dir)) {
+            throw new RuntimeException("file initialization failed, Please check.");
+        }
+        reposWhiteList = new HashSet<>(service.getRepositoryWhiteList());
         //拉取所有仓库地址
         repositories = GitlabProjectsFetcherWithPagination.fetchAllGitlabProjects(gitlab, group, token);
-        LOGGER.info("Total repositories: {}", repositories.size());
+        LOGGER.info("Total git repositories: {}", repositories.size());
 
-        serviceBasePath = new GitLabImpl(commandUtil);
-        Path records = Paths.get(Const.BASE_RESULT.toString(), "records");
+        serviceBasePath = new GitLabImpl(commandUtil, repositoryPath);
         try {
+            Path records = Paths.get(dir, Const.RECORDS_SER);
             if(reset) {
-                records.toFile().delete();
-                cn.hutool.core.io.FileUtil.del(Const.BASE_RESULT);
-                cn.hutool.core.io.FileUtil.del(Const.BASE_REPOSITORIES);
+                cn.hutool.core.io.FileUtil.del(records.toString());
+                cn.hutool.core.io.FileUtil.del(dir);
             }
             customizableBitmap = CustomizableBitmap.loadFromFile(records.toString(), repositories.size() * 2);
         } catch (IOException | ClassNotFoundException e) {
@@ -100,13 +109,6 @@ public class CodeSearchRequestHandler implements CodeQualityLogger, Closeable {
             .setThreadFactory(new NamedThreadFactory("CodeSearch-Task-",true))
             .setWorkQueue(new ArrayBlockingQueue<>(500))
             .build();
-    private final ExecutorService  deleteExecutorService = ExecutorBuilder.create()
-            .setCorePoolSize(8)
-            .setMaxPoolSize(8)
-            .setKeepAliveTime(0)
-            .setThreadFactory(new NamedThreadFactory("FileDelete-Task-",true))
-            .setWorkQueue(new ArrayBlockingQueue<>(500))
-            .build();
 
     private final AtomicInteger solved = new AtomicInteger(0);
     ScheduledExecutorService scheduled = Executors.newScheduledThreadPool(1, new NamedThreadFactory("Monitor-Task-",true));
@@ -117,6 +119,7 @@ public class CodeSearchRequestHandler implements CodeQualityLogger, Closeable {
             Path basePath = Paths.get(request.getBasePath());
             List<CompletableFuture<FileHandleResult>> list = new ArrayList<>();
             HashMap<CompletableFuture<FileHandleResult>,FileType> mp = new HashMap<>();
+            HashMap<CompletableFuture<FileHandleResult>,FileHandlerXiaoAiService> mp2 = new HashMap<>();
             for (FileTypeAndExp fileTypeAndExp : fileTypeAndExpList) {
                 Exp exp = fileTypeAndExp.getExp();
                 FileType fileTypes = fileTypeAndExp.getFileTypes();
@@ -124,15 +127,17 @@ public class CodeSearchRequestHandler implements CodeQualityLogger, Closeable {
                 XiaoAiService xiaoAiService = new XiaoAiService(basePath, null);
                 CompletableFuture<FileHandleResult> cf = fileHandlerXiaoAiService.handle(xiaoAiService);
                 mp.put(cf, fileTypes);
+                mp2.put(cf, fileHandlerXiaoAiService);
                 list.add(cf);
             }
             List<FileHandleResult> ans = new ArrayList<>();
             for (CompletableFuture<FileHandleResult> cf : list) {
                 FileHandleResult fileHandleResult = cf.get();
                 fileHandleResult.setFileType(mp.get(cf));
+                fileHandleResult.setFileTypeString(mp2.get(cf).toString());
                 ans.add(fileHandleResult);
             }
-            return new CodeSearchResponse(ans);
+            return new CodeSearchResponse(request, ans);
         }catch (Exception e) {
             e.printStackTrace();
         }
@@ -147,15 +152,15 @@ public class CodeSearchRequestHandler implements CodeQualityLogger, Closeable {
         scheduled.scheduleAtFixedRate(() -> {
             try {
                 customizableBitmap.saveToFile();
-                LOGGER.info("Remaining task size is {}. The progress is {}/{}, set: {}", repositories.size() - solved.intValue(), solved.intValue(), repositories.size(), handing);
+                LOGGER.info("Remaining task size is {}. The progress is {}/{}, The git repository being processed is: {}", repositories.size() - solved.intValue(), solved.intValue(), repositories.size(), handing);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
         }, 0, 10, TimeUnit.SECONDS);
         for (int i = 0; i < repositories.size(); i++) {
             String repository = repositories.get(i);
-            // 任务不在白名单内，且处于未完成状态
-            if(!set.contains(PrintUtil.extractRepoName(repository)) && customizableBitmap.getBit(i) == 0) {
+            // 仓库不在白名单内且处于未完成状态
+            if(!reposWhiteList.contains(PrintUtil.extractRepoName(repository)) && customizableBitmap.getBit(i) == 0) {
                 CompletableFuture<Void> completableFuture = CompletableFuture.runAsync(new SearchTask(repository), executorService);
                 final int finalI = i;
                 completableFuture.thenRunAsync(()-> {
@@ -174,6 +179,7 @@ public class CodeSearchRequestHandler implements CodeQualityLogger, Closeable {
                 LOGGER.info("Total time: {} ,min", (endTime - startTime) / 1000 / 60);
                 LOGGER.info("Problems exist repository: {}", problemsExist);
                 try {
+                    responseSaver.close();
                     customizableBitmap.saveToFile();
                 } catch (IOException e) {
                     throw new RuntimeException(e);
@@ -192,79 +198,40 @@ public class CodeSearchRequestHandler implements CodeQualityLogger, Closeable {
         XiaoAiServiceQueryHandler.close();
     }
 
-    @Data
-    @AllArgsConstructor
-    @NoArgsConstructor
-    @Builder
-    public static class FileTypeAndExp {
-        private Exp exp;
-        private FileType fileTypes;
-    }
-    @Data
-    @AllArgsConstructor
-    @NoArgsConstructor
-    @Builder
-    public static class CodeSearchRequest {
-        private String basePath;
-        private Set<String> filePathWhiteList;
-        private List<FileTypeAndExp> fileTypeAndExpList;
-    }
 
-    @Data
-    public static class CodeSearchResponse {
-        List<FileHandleResult> fileHandleResults;
-        private boolean isEmpty = true;
 
-        public CodeSearchResponse(List<FileHandleResult> fileHandleResults) {
-            this.fileHandleResults = fileHandleResults;
-            for (FileHandleResult fileHandleResult : fileHandleResults) {
-                if(!fileHandleResult.getFileMatchResults().isEmpty()) {
-                    isEmpty = false;
-                    break;
-                }
-            }
-        }
-        @Override
-        public String toString() {
-            StringBuilder sb = new StringBuilder();
-            for(FileHandleResult fileHandleResult : fileHandleResults) sb.append(fileHandleResult);
-            return sb.toString();
-        }
-    }
+
 
     class SearchTask implements Runnable {
-        private final String repository;
-        public SearchTask(String repository) {
-            this.repository = repository;
+        private String repositoryUrl;
+
+        public SearchTask(String repositoryUrl) {
+            this.repositoryUrl = repositoryUrl;
         }
         @Override
         public void run() {
-            LOGGER.info("Pulling in {}", repository);
-            handing.add(repository);
-            String basePath = serviceBasePath.getBasePath(repository);
+            LOGGER.info("Pulling in {}", repositoryUrl);
+            handing.add(repositoryUrl);
+            String basePath = serviceBasePath.getBasePath(repositoryUrl);
             LOGGER.info("Pulling success basePath:{}", basePath);
-            CodeSearchRequestHandler.CodeSearchRequest.CodeSearchRequestBuilder requestBuilder = CodeSearchRequestHandler.CodeSearchRequest.builder();
-            CodeSearchRequestHandler.CodeSearchRequest request =
+            CodeSearchRequest.CodeSearchRequestBuilder requestBuilder = CodeSearchRequest.builder();
+            CodeSearchRequest request =
                     requestBuilder.basePath(basePath)
-                            .filePathWhiteList(Const.DEFAULT_WHITE_LIST)
+                            .filePathWhiteList(pathWhiteList)
                             .fileTypeAndExpList(fileTypeAndExpList)
                             .build();
             CodeSearchResponse response = handle(request);
             if (response==null) {
-                LOGGER.error("Analysis fail. Repository:[{}]",repository);
-                problemsExist.add(repository);
-            }else if(!response.isEmpty) {
-                FileUtil.writeTextToFile(Const.BASE_RESULT.toString(), extractRepoName(repository) ,response.toString());
-                LOGGER.info("Analysis success. Find matching items. Repository:[{}]",repository);
+                LOGGER.error("Analysis fail. Repository:[{}]", repositoryUrl);
+                problemsExist.add(repositoryUrl);
+            }else if(!response.isEmpty()) {
+                responseSaver.addItem(response);
+                LOGGER.info("Analysis success. Find matching items. Repository:[{}]", repositoryUrl);
             } else {
-                LOGGER.info("Analysis success. No matches found. Repository:[{}]",repository);
+                LOGGER.info("Analysis success. No matches found. Repository:[{}]", repositoryUrl);
             }
-//            deleteExecutorService.submit(() -> {
-//                cn.hutool.core.io.FileUtil.del(basePath);
-//            });
-
-            handing.remove(repository);
-            LOGGER.info("Repository: {} delete success.", repository);
+            handing.remove(repositoryUrl);
+            LOGGER.info("Repository: {} handle success.", repositoryUrl);
         }
     }
 
